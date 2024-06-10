@@ -24,10 +24,10 @@ CONFIG = {
     "serial_port": "/dev/ttyUSB0",
     "baud_rate": 9600,
     "buzzer_pin": 23,
-    "temperature_threshold": 31,
+    "temperature_threshold": 34,
     "check_interval": 10,
     "buzzer_frequency": 2000,
-    "buzzer_duration": 5,
+    "buzzer_duration": 5,  # Duration for start buzz
     "min_hue": 180,
     "max_hue": 360,
     "pixel_size": 30,
@@ -314,6 +314,7 @@ class painter(QGraphicsView):
         high_temps = [temp for temp in frame if temp > CONFIG["temperature_threshold"]]
         if high_temps:
             bin_notification.send_notification('notify')
+            buzzer.duration = 3  # Update buzzer duration to 3 seconds for high temp
             buzzer.start()  # Non-blocking buzzer activation
         self.in_checking = False
 
@@ -420,7 +421,8 @@ def run():
     buzzer = Buzzer(buzzer_pin, CONFIG["buzzer_frequency"], CONFIG["buzzer_duration"])
 
     bin_notification.send_notification('start')
-    buzzer.start()
+    buzzer.duration = 2
+    buzzer.start() 
 
     if len(sys.argv) >= 2 and sys.argv[1] == "-h":
         print("Usage: %s [PortName] [minHue] [maxHue] [NarrowRatio] [UseBlur]" % sys.argv[0])
