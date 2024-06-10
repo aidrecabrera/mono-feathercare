@@ -1,5 +1,6 @@
 import sys
 import threading
+import time
 import seeed_mlx9064x
 from serial import Serial
 from flask import Flask, jsonify
