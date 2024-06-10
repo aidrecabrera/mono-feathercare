@@ -419,9 +419,7 @@ def run():
     buzzer_pin = setup_buzzer()
     buzzer = Buzzer(buzzer_pin, CONFIG["buzzer_frequency"], CONFIG["buzzer_duration"])
 
-
     bin_notification.send_notification('start')
-    buzzer.start()
 
     if len(sys.argv) >= 2 and sys.argv[1] == "-h":
         print("Usage: %s [PortName] [minHue] [maxHue] [NarrowRatio] [UseBlur]" % sys.argv[0])
