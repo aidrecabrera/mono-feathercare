@@ -409,6 +409,10 @@ def thermal_data():
     lock.release()
     return jsonify(data)
 
+def initial_buzz():
+    buzzer.duration = 2  # Set the duration to 2 seconds
+    buzzer.start()  # Trigger immediately
+
 def run():
     global minHue
     global maxHue
@@ -421,8 +425,8 @@ def run():
     buzzer = Buzzer(buzzer_pin, CONFIG["buzzer_frequency"], CONFIG["buzzer_duration"])
 
     bin_notification.send_notification('start')
-    buzzer.duration = 2
-    buzzer.start() 
+
+    threading.Timer(0, initial_buzz).start()
 
     if len(sys.argv) >= 2 and sys.argv[1] == "-h":
         print("Usage: %s [PortName] [minHue] [maxHue] [NarrowRatio] [UseBlur]" % sys.argv[0])
