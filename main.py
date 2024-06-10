@@ -418,7 +418,8 @@ def run():
     bin_notification = BinNotificationSystem()
     buzzer_pin = setup_buzzer()
     buzzer = Buzzer(buzzer_pin, CONFIG["buzzer_frequency"], CONFIG["buzzer_duration"])
-
+    
+    buzzer.start()
     bin_notification.send_notification('start')
 
     if len(sys.argv) >= 2 and sys.argv[1] == "-h":
