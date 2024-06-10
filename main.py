@@ -86,7 +86,7 @@ class Buzzer(QObject):
 
     def start(self):
         self.current_cycle = 0
-        self.timer.start(self.period)
+        self.timer.start(int(self.period))
 
     @pyqtSlot()
     def toggle_buzzer(self):
