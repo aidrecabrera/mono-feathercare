@@ -11,12 +11,12 @@ from PyQt5.QtWidgets import (
     QGraphicsTextItem,
     QGraphicsEllipseItem,
     QGraphicsLineItem,
-    QGraphicsBlurEffect
+    QGraphicsBlurEffect,
+    QMainWindow
 )
 from PyQt5.QtGui import QPainter, QBrush, QColor, QFont, QPixmap, QPen
-from PyQt5.QtCore import QThread, pyqtSignal, Qt, QTimer
+from PyQt5.QtCore import QThread, pyqtSignal, Qt, QTimer, QObject, pyqtSlot
 import serial
-import time
 import RPi.GPIO as GPIO
 
 CONFIG = {
@@ -70,20 +70,32 @@ def setup_buzzer(buzzer_pin=CONFIG["buzzer_pin"]):
     GPIO.setup(buzzer_pin, GPIO.OUT)
     return buzzer_pin
 
-def buzzer_on(buzzer_pin=CONFIG["buzzer_pin"]):
-    GPIO.output(buzzer_pin, GPIO.HIGH)
+class Buzzer(QObject):
+    def __init__(self, buzzer_pin, frequency, duration):
+        super().__init__()
+        self.buzzer_pin = buzzer_pin
+        self.frequency = frequency
+        self.duration = duration
+        self.period = 1000 / (2 * frequency)  # Half-period in milliseconds
+        self.cycles = int(2 * duration * frequency)  # Total number of half-periods
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.toggle_buzzer)
+        self.current_cycle = 0
+        self.state = False
 
-def buzzer_off(buzzer_pin=CONFIG["buzzer_pin"]):
-    GPIO.output(buzzer_pin, GPIO.LOW)
+    def start(self):
+        self.current_cycle = 0
+        self.timer.start(self.period)
 
-def play_tone(buzzer_pin, frequency=CONFIG["buzzer_frequency"], duration=CONFIG["buzzer_duration"]):
-    period = 1.0 / frequency
-    cycles = int(duration * frequency)
-    for _ in range(cycles):
-        buzzer_on(buzzer_pin)
-        time.sleep(period / 2)
-        buzzer_off(buzzer_pin)
-        time.sleep(period / 2)
+    @pyqtSlot()
+    def toggle_buzzer(self):
+        if self.current_cycle >= self.cycles:
+            self.timer.stop()
+            GPIO.output(self.buzzer_pin, GPIO.LOW)
+        else:
+            GPIO.output(self.buzzer_pin, GPIO.HIGH if self.state else GPIO.LOW)
+            self.state = not self.state
+            self.current_cycle += 1
 
 def cleanup():
     GPIO.cleanup()
@@ -301,7 +313,7 @@ class painter(QGraphicsView):
         high_temps = [temp for temp in frame if temp > CONFIG["temperature_threshold"]]
         if high_temps:
             bin_notification.send_notification('notify')
-            play_tone(buzzer_pin)
+            buzzer.start()  # Non-blocking buzzer activation
         self.in_checking = False
 
     def draw(self):
@@ -400,9 +412,11 @@ def run():
     global maxHue
     global bin_notification
     global buzzer_pin
+    global buzzer
 
     bin_notification = BinNotificationSystem()
     buzzer_pin = setup_buzzer()
+    buzzer = Buzzer(buzzer_pin, CONFIG["buzzer_frequency"], CONFIG["buzzer_duration"])
 
     bin_notification.send_notification('start')
 
