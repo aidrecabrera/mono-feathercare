@@ -41,7 +41,7 @@ CONFIG = {
     "font_family": "Microsoft YaHei",
 }
 
-hetaData = []
+hetaData = {"frame": [], "maxHet": 0, "minHet": 0}
 lock = threading.Lock()
 minHue = CONFIG["min_hue"]
 maxHue = CONFIG["max_hue"]
@@ -189,18 +189,11 @@ class DataReader(QThread):
                 continue
 
             lock.acquire()
-            hetaData.append(
-                {
-                    "frame": tempData,
-                    "maxHet": maxHet,
-                    "minHet": minHet
-                }
-            )
-            if len(hetaData) > 10:
-                hetaData.pop(0)  # Keep the list from growing indefinitely
+            hetaData["frame"] = tempData
+            hetaData["maxHet"] = maxHet
+            hetaData["minHet"] = minHet
             lock.release()
             self.drawRequire.emit()
-            self.frameCount = self.frameCount + 1
 
 class painter(QGraphicsView):
     narrowRatio = CONFIG["narrow_ratio"]
@@ -301,20 +294,18 @@ class painter(QGraphicsView):
 
     def periodicCheck(self):
         self.in_checking = True
-        for _ in range(10):  # Simulating a longer checking process without blocking the UI
-            QTimer.singleShot(1000, self.performCheck)  # Schedule checks every second
+        self.performCheck()
 
     def performCheck(self):
-        if len(hetaData) > 0:
-            frame = hetaData[-1]
-            high_temps = [temp for temp in frame["frame"] if temp > CONFIG["temperature_threshold"]]
-            if high_temps:
-                bin_notification.send_notification('notify')
-                play_tone(buzzer_pin)
+        frame = hetaData["frame"]
+        high_temps = [temp for temp in frame if temp > CONFIG["temperature_threshold"]]
+        if high_temps:
+            bin_notification.send_notification('notify')
+            play_tone(buzzer_pin)
         self.in_checking = False
 
     def draw(self):
-        if len(hetaData) == 0:
+        if not hetaData["frame"]:
             return
         font = QFont()
         color = QColor()
@@ -324,11 +315,10 @@ class painter(QGraphicsView):
         font.setLetterSpacing(QFont.AbsoluteSpacing, 0)
         index = 0
         lock.acquire()
-        frame = hetaData.pop(0)
+        frame = hetaData["frame"]
+        maxHet = hetaData["maxHet"]
+        minHet = hetaData["minHet"]
         lock.release()
-        maxHet = frame["maxHet"]
-        minHet = frame["minHet"]
-        frame = frame["frame"]
         avgTemp = sum(frame) / len(frame)
         p = QPainter(self.cameraBuffer)
         p.fillRect(
@@ -401,12 +391,9 @@ class painter(QGraphicsView):
 @flask_app.route('/thermal_data')
 def thermal_data():
     lock.acquire()
-    if len(hetaData) == 0:
-        data = {"status": "no data"}
-    else:
-        data = hetaData[-1]
+    data = hetaData.copy()
     lock.release()
-    return jsonify({"frame": data.get("frame", []), "maxHet": data.get("maxHet", 0), "minHet": data.get("minHet", 0)})
+    return jsonify(data)
 
 def run():
     global minHue
