@@ -320,12 +320,12 @@ class painter(QGraphicsView):
         self.performCheck()
 
     def performCheck(self):
-        frame = hetaData["frame"]
-        high_temps = [temp for temp in frame if temp > CONFIG["temperature_threshold"]]
+    frame = hetaData["frame"]
+    high_temps = [temp for temp in frame if temp > CONFIG["temperature_threshold"]]
         if high_temps:
             bin_notification.send_notification('notify')
             log_to_db("fever_log")
-            buzzer.duration = 3
+            buzzer = Buzzer(buzzer_pin, CONFIG["buzzer_frequency"], CONFIG["buzzer_duration"])
             buzzer.start()
         log_to_db("monitor_log")
         self.in_checking = False
