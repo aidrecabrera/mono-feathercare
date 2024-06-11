@@ -39,7 +39,9 @@ const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
     svg.selectAll("*").remove();
 
     const colorScale = d3
-      .scaleSequential(d3.interpolateCool)
+      .scaleSequential((d) =>
+        d3.hsl(mapValue(d, minHet, maxHet, 180, 360).toString()).toString()
+      )
       .domain([minHet, maxHet]);
 
     svg
@@ -142,7 +144,9 @@ const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
     const colorScaleWidth = CONFIG.width / 5;
 
     const colorScale = d3
-      .scaleSequential(d3.interpolateRainbow)
+      .scaleSequential((d) =>
+        d3.hsl(mapValue(d, minHet, maxHet, 180, 360).toString()).toString()
+      )
       .domain([minHet, maxHet]);
 
     for (let i = 0; i < 5; i++) {
@@ -163,6 +167,16 @@ const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
         .attr("text-anchor", "middle")
         .text(`${temp.toFixed(0)}°`);
     }
+  };
+
+  const mapValue = (
+    value: number,
+    inMin: number,
+    inMax: number,
+    outMin: number,
+    outMax: number
+  ): number => {
+    return ((value - inMin) * (outMax - outMin)) / (inMax - inMin) + outMin;
   };
 
   return <svg ref={svgRef} width={CONFIG.width} height={CONFIG.height + 50} />;
