@@ -1,6 +1,19 @@
 import Indicator from "@/components/components/indicators";
+import { SliderBlur } from "@/components/components/slider-blur";
 import ThermalHeatmap from "@/components/thermal";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import axios from "axios";
 import React, { useEffect, useState } from "react";
@@ -12,20 +25,25 @@ interface ThermalData {
   minHet: number;
 }
 
-const CONFIG = {
-  temperatureThreshold: 40.1,
-};
+const getDefaultConfig = () => ({
+  temperatureThreshold: parseFloat(
+    localStorage.getItem("temperatureThreshold") || "40.1"
+  ),
+  blurRadius: parseFloat(localStorage.getItem("blurRadius") || "8"),
+  apiUrl:
+    localStorage.getItem("apiUrl") || "http://192.168.0.159:5000/thermal_data",
+});
 
 const App: React.FC = () => {
   const [data, setData] = useState<ThermalData | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+  const [config, setConfig] = useState(getDefaultConfig());
+  const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 
   const fetchData = async () => {
     setLastRefreshed(new Date());
     try {
-      const response = await axios.get<ThermalData>(
-        "http://192.168.0.159:5000/thermal_data"
-      );
+      const response = await axios.get<ThermalData>(config.apiUrl);
       setData(response.data);
     } catch (error) {
       console.error("Error fetching thermal data:", error);
@@ -34,13 +52,29 @@ const App: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 30);
+    const interval = setInterval(fetchData, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [config.apiUrl]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      "temperatureThreshold",
+      config.temperatureThreshold.toString()
+    );
+    localStorage.setItem("blurRadius", config.blurRadius.toString());
+    localStorage.setItem("apiUrl", config.apiUrl);
+  }, [config]);
 
   const highFeverDetected = data
-    ? data.frame.some((temp) => temp >= CONFIG.temperatureThreshold)
+    ? data.frame.some((temp) => temp >= config.temperatureThreshold)
     : false;
+
+  const handleConfigChange = (key: string, value: any) => {
+    setConfig((prevConfig) => ({
+      ...prevConfig,
+      [key]: value,
+    }));
+  };
 
   return (
     <div className="flex flex-col gap-2">
@@ -52,7 +86,7 @@ const App: React.FC = () => {
         </CardHeader>
         <CardContent className="flex items-center justify-center w-full h-full">
           {data ? (
-            <ThermalHeatmap data={data} />
+            <ThermalHeatmap data={data} blurRadius={config.blurRadius} />
           ) : (
             <Skeleton className="w-[320px] h-[240px]"></Skeleton>
           )}
@@ -78,6 +112,59 @@ const App: React.FC = () => {
           title="Avg Temperature"
           amount={data ? `${averageTemp(data.frame).toFixed(2)}°` : "N/A"}
         />
+      </div>
+      <div className="mt-4">
+        <h2 className="text-lg font-medium">Adjust Blur Radius</h2>
+        <SliderBlur
+          defaultValue={[config.blurRadius]}
+          max={50}
+          step={1}
+          onValueChange={(value) => handleConfigChange("blurRadius", value[0])}
+        />
+      </div>
+      <div className="mt-4">
+        <h2 className="text-lg font-medium">Adjust Temperature Threshold</h2>
+        <SliderBlur
+          defaultValue={[config.temperatureThreshold]}
+          max={50}
+          step={0.1}
+          onValueChange={(value) =>
+            handleConfigChange("temperatureThreshold", value[0])
+          }
+        />
+      </div>
+      <div className="mt-4">
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline">Edit API URL</Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Edit API URL</DialogTitle>
+              <DialogDescription>
+                Change the API endpoint to fetch thermal data.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid items-center grid-cols-4 gap-4">
+                <Label htmlFor="apiUrl" className="text-right">
+                  API URL
+                </Label>
+                <Input
+                  id="apiUrl"
+                  value={config.apiUrl}
+                  onChange={(e) => handleConfigChange("apiUrl", e.target.value)}
+                  className="col-span-3"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setIsDialogOpen(false)}>
+                Save changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

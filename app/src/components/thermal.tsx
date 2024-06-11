@@ -9,6 +9,7 @@ interface ThermalData {
 
 interface ThermalHeatmapProps {
   data: ThermalData | null;
+  blurRadius: number;
 }
 
 const CONFIG = {
@@ -18,17 +19,19 @@ const CONFIG = {
   numRows: 12,
   fontSize: 30,
   centerIndex: 95,
-  blurRadius: 13,
 };
 
-const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
+const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({
+  data,
+  blurRadius,
+}) => {
   const svgRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
     if (data) {
       drawHeatmap(data);
     }
-  }, [data]);
+  }, [data, blurRadius]);
 
   const drawHeatmap = (thermalData: ThermalData) => {
     const { frame, maxHet, minHet } = thermalData;
@@ -43,7 +46,7 @@ const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
       .append("filter")
       .attr("id", "blur")
       .append("feGaussianBlur")
-      .attr("stdDeviation", CONFIG.blurRadius);
+      .attr("stdDeviation", blurRadius); // Use blurRadius prop
 
     const g = svg.append("g").attr("filter", "url(#blur)");
 
