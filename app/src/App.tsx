@@ -82,8 +82,9 @@ const App: React.FC = () => {
       <Card className="w-full">
         <CardHeader>
           <h1 className="text-lg font-medium md:text-xl">
-            Chick Coop Live Heatmap
+            Realtime Live Heatmap of Thermal Camera
           </h1>
+          <p>Freebird Detection using Thermal Sensing for Brooding Chicks</p>
         </CardHeader>
         <CardContent className="flex items-center justify-center w-full h-full">
           {data ? (
