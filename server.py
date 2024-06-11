@@ -226,6 +226,7 @@ def sync_to_supabase(table_name, retry_attempts=3):
             if table_name == "fever_log":
                 logs = session.query(FeverLog).all()
                 data = [{
+                    "id": log.id,
                     "detected_at": log.detected_at.isoformat(),
                     "min_temperature": log.min_temperature,
                     "max_temperature": log.max_temperature,
@@ -235,6 +236,7 @@ def sync_to_supabase(table_name, retry_attempts=3):
             else:
                 logs = session.query(MonitorLog).all()
                 data = [{
+                    "id": log.id,
                     "logged_at": log.logged_at.isoformat(),
                     "min_temperature": log.min_temperature,
                     "max_temperature": log.max_temperature,
