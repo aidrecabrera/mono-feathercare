@@ -71,7 +71,6 @@ maxHue = CONFIG["max_hue"]
 flask_app = Flask(__name__)
 CORS(flask_app)
 
-# Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -114,33 +113,6 @@ def setup_buzzer(buzzer_pin=CONFIG["buzzer_pin"]):
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(buzzer_pin, GPIO.OUT)
     return buzzer_pin
-
-class Buzzer(QObject):
-    def __init__(self, buzzer_pin, frequency, duration):
-        super().__init__()
-        self.buzzer_pin = buzzer_pin
-        self.frequency = frequency
-        self.duration = duration
-        self.period = 1000 / (2 * frequency)
-        self.cycles = int(2 * duration * frequency)
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.toggle_buzzer)
-        self.current_cycle = 0
-        self.state = False
-
-    def start(self):
-        self.current_cycle = 0
-        self.timer.start(int(self.period))
-
-    @pyqtSlot()
-    def toggle_buzzer(self):
-        if self.current_cycle >= self.cycles:
-            self.timer.stop()
-            GPIO.output(self.buzzer_pin, GPIO.LOW)
-        else:
-            GPIO.output(self.buzzer_pin, GPIO.HIGH if self.state else GPIO.LOW)
-            self.state = not self.state
-            self.current_cycle += 1
 
 def cleanup():
     GPIO.cleanup()
@@ -359,8 +331,7 @@ class painter(QGraphicsView):
         if high_temps:
             bin_notification.send_notification('notify')
             log_to_db("fever_log")
-            buzzer = Buzzer(buzzer_pin, CONFIG["buzzer_frequency"], CONFIG["buzzer_duration"])
-            buzzer.start()
+            activate_buzzer(CONFIG["buzzer_duration"])
         log_to_db("monitor_log")
         self.in_checking = False
 
@@ -510,19 +481,21 @@ def sync_to_supabase(table_name, retry_attempts=3):
     logger.error(f"Failed to sync {table_name} data after {retry_attempts} attempts.")
 
 def initial_buzz():
-    buzzer.duration = 2
-    buzzer.start()
+    activate_buzzer(2)
+
+def activate_buzzer(duration):
+    GPIO.output(buzzer_pin, GPIO.HIGH)
+    time.sleep(duration)
+    GPIO.output(buzzer_pin, GPIO.LOW)
 
 def run():
     global minHue
     global maxHue
     global bin_notification
     global buzzer_pin
-    global buzzer
 
     bin_notification = BinNotificationSystem()
     buzzer_pin = setup_buzzer()
-    buzzer = Buzzer(buzzer_pin, CONFIG["buzzer_frequency"], CONFIG["buzzer_duration"])
 
     bin_notification.send_notification('start')
 
