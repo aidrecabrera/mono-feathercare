@@ -27,6 +27,8 @@ import serial
 import RPi.GPIO as GPIO
 from supabase import create_client
 from datetime import datetime
+from requests.exceptions import ConnectionError
+import logging
 
 CONFIG = {
     "serial_port": "/dev/ttyUSB0",
@@ -68,6 +70,10 @@ maxHue = CONFIG["max_hue"]
 
 flask_app = Flask(__name__)
 CORS(flask_app)
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class FeverLog(Base):
     __tablename__ = "fever_log"
@@ -358,7 +364,6 @@ class painter(QGraphicsView):
         log_to_db("monitor_log")
         self.in_checking = False
 
-
     def draw(self):
         if not hetaData["frame"]:
             return
@@ -467,26 +472,42 @@ def log_to_db(table_name):
     session.commit()
     threading.Thread(target=sync_to_supabase, args=(table_name,)).start()
 
-def sync_to_supabase(table_name):
-    if requests.get("http://www.google.com").status_code == 200:
-        if table_name == "fever_log":
-            logs = session.query(FeverLog).all()
-            data = [{
-                "detected_at": log.detected_at.isoformat(),
-                "min_temperature": log.min_temperature,
-                "max_temperature": log.max_temperature,
-                "avg_temperature": log.avg_temperature
-            } for log in logs]
-            supabase.table("fever_log").upsert(data, ignore_duplicates=True).execute()
-        else:
-            logs = session.query(MonitorLog).all()
-            data = [{
-                "logged_at": log.logged_at.isoformat(),
-                "min_temperature": log.min_temperature,
-                "max_temperature": log.max_temperature,
-                "avg_temperature": log.avg_temperature
-            } for log in logs]
-            supabase.table("monitor_log").upsert(data, ignore_duplicates=True).execute()
+def sync_to_supabase(table_name, retry_attempts=3):
+    for attempt in range(retry_attempts):
+        try:
+            response = requests.get("http://www.google.com")
+            response.raise_for_status()
+            
+            if table_name == "fever_log":
+                logs = session.query(FeverLog).all()
+                data = [{
+                    "detected_at": log.detected_at.isoformat(),
+                    "min_temperature": log.min_temperature,
+                    "max_temperature": log.max_temperature,
+                    "avg_temperature": log.avg_temperature
+                } for log in logs]
+                supabase.table("fever_log").upsert(data, ignore_duplicates=True).execute()
+            else:
+                logs = session.query(MonitorLog).all()
+                data = [{
+                    "logged_at": log.logged_at.isoformat(),
+                    "min_temperature": log.min_temperature,
+                    "max_temperature": log.max_temperature,
+                    "avg_temperature": log.avg_temperature
+                } for log in logs]
+                supabase.table("monitor_log").upsert(data, ignore_duplicates=True).execute()
+            logger.info(f"Synced {table_name} data successfully.")
+            return
+
+        except ConnectionError as e:
+            logger.warning(f"ConnectionError on attempt {attempt + 1}: {e}. Retrying...")
+            time.sleep(5)
+
+        except Exception as e:
+            logger.error(f"Unexpected error on attempt {attempt + 1}: {e}. Aborting sync.")
+            break
+
+    logger.error(f"Failed to sync {table_name} data after {retry_attempts} attempts.")
 
 def initial_buzz():
     buzzer.duration = 2
