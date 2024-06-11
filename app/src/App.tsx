@@ -34,7 +34,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 100);
+    const interval = setInterval(fetchData, 30);
     return () => clearInterval(interval);
   }, []);
 
