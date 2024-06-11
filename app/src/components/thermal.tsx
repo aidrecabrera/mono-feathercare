@@ -37,6 +37,10 @@ const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
 
     svg.selectAll("*").remove();
 
+    const colorScale = d3
+      .scaleSequential(d3.interpolateHsl("blue", "red"))
+      .domain([minHet, maxHet]);
+
     svg
       .selectAll("rect")
       .data(frame)
@@ -49,15 +53,10 @@ const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
       )
       .attr("width", pixelWidth)
       .attr("height", pixelHeight)
-      .attr("fill", (d: number) =>
-        hsvToRgb(mapValue(d, minHet, maxHet, 180, 360))
-      );
+      .attr("fill", (d: number) => colorScale(d));
 
-    // @ts-ignore
     drawCrosshair(svg, pixelWidth, pixelHeight);
-    // @ts-ignore
     drawTemperatureText(svg, frame, pixelWidth, pixelHeight);
-    // @ts-ignore
     drawColorScale(svg, minHet, maxHet);
   };
 
@@ -130,6 +129,10 @@ const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
       .attr("transform", `translate(0, ${CONFIG.height})`);
     const colorScaleWidth = CONFIG.width / 5;
 
+    const colorScale = d3
+      .scaleSequential(d3.interpolateHsl("blue", "red"))
+      .domain([minHet, maxHet]);
+
     for (let i = 0; i < 5; i++) {
       const temp = minHet + ((maxHet - minHet) / 5) * i;
       scaleGroup
@@ -137,7 +140,7 @@ const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
         .attr("x", i * colorScaleWidth)
         .attr("width", colorScaleWidth)
         .attr("height", 20)
-        .attr("fill", hsvToRgb(mapValue(temp, minHet, maxHet, 180, 360)));
+        .attr("fill", colorScale(temp));
 
       scaleGroup
         .append("text")
@@ -151,55 +154,6 @@ const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
   };
 
   return <svg ref={svgRef} width={CONFIG.width} height={CONFIG.height + 50} />;
-};
-
-const mapValue = (
-  value: number,
-  inMin: number,
-  inMax: number,
-  outMin: number,
-  outMax: number
-): number => {
-  return ((value - inMin) * (outMax - outMin)) / (inMax - inMin) + outMin;
-};
-
-const hsvToRgb = (hue: number): string => {
-  const h = hue / 360;
-  const s = 1.0;
-  const v = 1.0;
-  let r = 0,
-    g = 0,
-    b = 0;
-  const i = Math.floor(h * 6);
-  const f = h * 6 - i;
-  const p = v * (1 - s);
-  const q = v * (1 - f * s);
-  const t = v * (1 - (1 - f) * s);
-
-  switch (i % 6) {
-    case 0:
-      (r = v), (g = t), (b = p);
-      break;
-    case 1:
-      (r = q), (g = v), (b = p);
-      break;
-    case 2:
-      (r = p), (g = v), (b = t);
-      break;
-    case 3:
-      (r = p), (g = q), (b = v);
-      break;
-    case 4:
-      (r = t), (g = p), (b = v);
-      break;
-    case 5:
-      (r = v), (g = p), (b = q);
-      break;
-  }
-
-  return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(
-    b * 255
-  )})`;
 };
 
 const averageTemp = (frame: number[]): number => {
