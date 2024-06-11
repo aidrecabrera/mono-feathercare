@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import axios from "axios";
+import { Settings } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import "./App.css";
 
@@ -113,48 +114,63 @@ const App: React.FC = () => {
           amount={data ? `${averageTemp(data.frame).toFixed(2)}°` : "N/A"}
         />
       </div>
-      <div className="mt-4">
-        <h2 className="text-lg font-medium">Adjust Blur Radius</h2>
-        <SliderBlur
-          defaultValue={[config.blurRadius]}
-          max={50}
-          step={1}
-          onValueChange={(value) => handleConfigChange("blurRadius", value[0])}
-        />
-      </div>
-      <div className="mt-4">
-        <h2 className="text-lg font-medium">Adjust Temperature Threshold</h2>
-        <SliderBlur
-          defaultValue={[config.temperatureThreshold]}
-          max={50}
-          step={0.1}
-          onValueChange={(value) =>
-            handleConfigChange("temperatureThreshold", value[0])
-          }
-        />
-      </div>
-      <div className="mt-4">
+      <div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button variant="outline">Edit API URL</Button>
+            <Button variant="outline">
+              <span className="mr-2">
+                <Settings />
+              </span>
+              Settings
+            </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="max-w-[325px] md:max-w-[400px]: lg:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>Edit API URL</DialogTitle>
+              <DialogTitle>Settings</DialogTitle>
               <DialogDescription>
-                Change the API endpoint to fetch thermal data.
+                Change the settings for the thermal camera
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
-              <div className="grid items-center grid-cols-4 gap-4">
+              <div className="w-full">
                 <Label htmlFor="apiUrl" className="text-right">
+                  Blur Radius
+                </Label>
+                <SliderBlur
+                  defaultValue={[config.blurRadius]}
+                  max={50}
+                  step={1}
+                  onValueChange={(value) =>
+                    handleConfigChange("blurRadius", value[0])
+                  }
+                  className="w-full py-2"
+                />
+                <h2>{config.blurRadius}px</h2>
+              </div>
+              <div>
+                <Label htmlFor="apiUrl" className="text-right">
+                  Temperature Threshold
+                </Label>
+                <SliderBlur
+                  defaultValue={[config.temperatureThreshold]}
+                  max={50}
+                  step={0.1}
+                  className="w-full py-2"
+                  onValueChange={(value) =>
+                    handleConfigChange("temperatureThreshold", value[0])
+                  }
+                />
+                <h2>{config.temperatureThreshold.toFixed(1)}°C </h2>
+              </div>
+              <div className="grid items-center grid-cols-4 gap-4">
+                <Label htmlFor="apiUrl" className="text-left">
                   API URL
                 </Label>
                 <Input
                   id="apiUrl"
                   value={config.apiUrl}
                   onChange={(e) => handleConfigChange("apiUrl", e.target.value)}
-                  className="col-span-3"
+                  className="col-span-4"
                 />
               </div>
             </div>
