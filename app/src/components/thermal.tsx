@@ -18,7 +18,6 @@ const CONFIG = {
   numRows: 12,
   fontSize: 30,
   centerIndex: 95,
-  blurRadius: 10,
 };
 
 const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
@@ -38,22 +37,8 @@ const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
 
     svg.selectAll("*").remove();
 
-    const colorScale = d3
-      .scaleSequential((d) =>
-        d3.hsl(mapValue(d, minHet, maxHet, 180, 360).toString()).toString()
-      )
-      .domain([minHet, maxHet]);
-
     svg
-      .append("defs")
-      .append("filter")
-      .attr("id", "blur")
-      .append("feGaussianBlur")
-      .attr("stdDeviation", CONFIG.blurRadius);
-
-    const g = svg.append("g").attr("filter", "url(#blur)");
-
-    g.selectAll("rect")
+      .selectAll("rect")
       .data(frame)
       .enter()
       .append("rect")
@@ -64,7 +49,9 @@ const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
       )
       .attr("width", pixelWidth)
       .attr("height", pixelHeight)
-      .attr("fill", (d: number) => colorScale(d));
+      .attr("fill", (d: number) =>
+        hsvToRgb(mapValue(d, minHet, maxHet, 180, 360))
+      );
 
     // @ts-ignore
     drawCrosshair(svg, pixelWidth, pixelHeight);
@@ -143,12 +130,6 @@ const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
       .attr("transform", `translate(0, ${CONFIG.height})`);
     const colorScaleWidth = CONFIG.width / 5;
 
-    const colorScale = d3
-      .scaleSequential((d) =>
-        d3.hsl(mapValue(d, minHet, maxHet, 180, 360).toString()).toString()
-      )
-      .domain([minHet, maxHet]);
-
     for (let i = 0; i < 5; i++) {
       const temp = minHet + ((maxHet - minHet) / 5) * i;
       scaleGroup
@@ -156,7 +137,7 @@ const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
         .attr("x", i * colorScaleWidth)
         .attr("width", colorScaleWidth)
         .attr("height", 20)
-        .attr("fill", colorScale(temp));
+        .attr("fill", hsvToRgb(mapValue(temp, minHet, maxHet, 180, 360)));
 
       scaleGroup
         .append("text")
@@ -169,17 +150,56 @@ const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
     }
   };
 
-  const mapValue = (
-    value: number,
-    inMin: number,
-    inMax: number,
-    outMin: number,
-    outMax: number
-  ): number => {
-    return ((value - inMin) * (outMax - outMin)) / (inMax - inMin) + outMin;
-  };
-
   return <svg ref={svgRef} width={CONFIG.width} height={CONFIG.height + 50} />;
+};
+
+const mapValue = (
+  value: number,
+  inMin: number,
+  inMax: number,
+  outMin: number,
+  outMax: number
+): number => {
+  return ((value - inMin) * (outMax - outMin)) / (inMax - inMin) + outMin;
+};
+
+const hsvToRgb = (hue: number): string => {
+  const h = hue / 360;
+  const s = 1.0;
+  const v = 1.0;
+  let r = 0,
+    g = 0,
+    b = 0;
+  const i = Math.floor(h * 6);
+  const f = h * 6 - i;
+  const p = v * (1 - s);
+  const q = v * (1 - f * s);
+  const t = v * (1 - (1 - f) * s);
+
+  switch (i % 6) {
+    case 0:
+      (r = v), (g = t), (b = p);
+      break;
+    case 1:
+      (r = q), (g = v), (b = p);
+      break;
+    case 2:
+      (r = p), (g = v), (b = t);
+      break;
+    case 3:
+      (r = p), (g = q), (b = v);
+      break;
+    case 4:
+      (r = t), (g = p), (b = v);
+      break;
+    case 5:
+      (r = v), (g = p), (b = q);
+      break;
+  }
+
+  return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(
+    b * 255
+  )})`;
 };
 
 const averageTemp = (frame: number[]): number => {
