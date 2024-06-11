@@ -1,6 +1,9 @@
+import os
 import sys
 import threading
 import time
+import sqlite3
+import requests
 import seeed_mlx9064x
 from serial import Serial
 from flask import Flask, jsonify
@@ -13,13 +16,13 @@ from PyQt5.QtWidgets import (
     QGraphicsTextItem,
     QGraphicsEllipseItem,
     QGraphicsLineItem,
-    QGraphicsBlurEffect,
     QMainWindow
 )
 from PyQt5.QtGui import QPainter, QBrush, QColor, QFont, QPixmap, QPen
 from PyQt5.QtCore import QThread, pyqtSignal, Qt, QTimer, QObject, pyqtSlot
 import serial
 import RPi.GPIO as GPIO
+from supabase import create_client
 
 CONFIG = {
     "serial_port": "/dev/ttyUSB0",
@@ -28,7 +31,7 @@ CONFIG = {
     "temperature_threshold": 40.6,
     "check_interval": 30,
     "buzzer_frequency": 2000,
-    "buzzer_duration": 2.5,  # Duration for start buzz
+    "buzzer_duration": 2.5,
     "min_hue": 180,
     "max_hue": 360,
     "pixel_size": 30,
@@ -42,6 +45,10 @@ CONFIG = {
     "center_index": 95,
     "font_family": "Microsoft YaHei",
 }
+
+SUPABASE_URL = "https://ofwutctiuezihlprbwqs.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9md3V0Y3RpdWV6aWhscHJid3FzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTgwOTIwODUsImV4cCI6MjAzMzY2ODA4NX0.RMO9URsAmSRpVd7RPWFmpdz6wmfHM1i_qQohCNfSyoc"
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 hetaData = {"frame": [], "maxHet": 0, "minHet": 0}
 lock = threading.Lock()
@@ -79,8 +86,8 @@ class Buzzer(QObject):
         self.buzzer_pin = buzzer_pin
         self.frequency = frequency
         self.duration = duration
-        self.period = 1000 / (2 * frequency)  # Half-period in milliseconds
-        self.cycles = int(2 * duration * frequency)  # Total number of half-periods
+        self.period = 1000 / (2 * frequency)
+        self.cycles = int(2 * duration * frequency)
         self.timer = QTimer()
         self.timer.timeout.connect(self.toggle_buzzer)
         self.current_cycle = 0
@@ -316,8 +323,10 @@ class painter(QGraphicsView):
         high_temps = [temp for temp in frame if temp > CONFIG["temperature_threshold"]]
         if high_temps:
             bin_notification.send_notification('notify')
-            buzzer.duration = 3  # Update buzzer duration to 3 seconds for high temp
-            buzzer.start()  # Non-blocking buzzer activation
+            log_to_db("fever_log")
+            buzzer.duration = 3
+            buzzer.start()
+        log_to_db("monitor_log")
         self.in_checking = False
 
     def draw(self):
@@ -411,9 +420,52 @@ def thermal_data():
     lock.release()
     return jsonify(data)
 
+def log_to_db(table_name):
+    conn = sqlite3.connect("thermal_data.db")
+    cur = conn.cursor()
+    if table_name == "fever_log":
+        cur.execute('''CREATE TABLE IF NOT EXISTS fever_log 
+                       (detected_at TEXT, min_temperature REAL, max_temperature REAL, avg_temperature REAL)''')
+        cur.execute('''INSERT INTO fever_log (detected_at, min_temperature, max_temperature, avg_temperature) 
+                       VALUES (datetime('now'), ?, ?, ?)''', 
+                    (hetaData["minHet"], hetaData["maxHet"], sum(hetaData["frame"]) / len(hetaData["frame"])))
+    else:
+        cur.execute('''CREATE TABLE IF NOT EXISTS monitor_log 
+                       (logged_at TEXT, min_temperature REAL, max_temperature REAL, avg_temperature REAL)''')
+        cur.execute('''INSERT INTO monitor_log (logged_at, min_temperature, max_temperature, avg_temperature) 
+                       VALUES (datetime('now'), ?, ?, ?)''', 
+                    (hetaData["minHet"], hetaData["maxHet"], sum(hetaData["frame"]) / len(hetaData["frame"])))
+    conn.commit()
+    conn.close()
+    threading.Thread(target=sync_to_supabase, args=(table_name,)).start()
+
+def sync_to_supabase(table_name):
+    if requests.get("http://www.google.com").status_code == 200:
+        conn = sqlite3.connect("thermal_data.db")
+        cur = conn.cursor()
+        cur.execute(f"SELECT * FROM {table_name}")
+        rows = cur.fetchall()
+        if table_name == "fever_log":
+            data = [{
+                "detected_at": row[0],
+                "min_temperature": row[1],
+                "max_temperature": row[2],
+                "avg_temperature": row[3]
+            } for row in rows]
+            supabase.table("fever_log").upsert(data, ignore_duplicates=True).execute()
+        else:
+            data = [{
+                "logged_at": row[0],
+                "min_temperature": row[1],
+                "max_temperature": row[2],
+                "avg_temperature": row[3]
+            } for row in rows]
+            supabase.table("monitor_log").upsert(data, ignore_duplicates=True).execute()
+        conn.close()
+
 def initial_buzz():
-    buzzer.duration = 2  # Set the duration to 2 seconds
-    buzzer.start()  # Trigger immediately
+    buzzer.duration = 2
+    buzzer.start()
 
 def run():
     global minHue
