@@ -1,3 +1,5 @@
+"use client";
+
 import { supabase } from "@/client/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -23,6 +25,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 
+import { DatePickerWithPresets } from "@/components/components/date-picker";
 import {
   Select,
   SelectContent,
@@ -45,6 +48,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
 } from "lucide-react";
+import Indicator from "./indicators";
 
 interface MonitorData {
   logged_at: string;
@@ -209,6 +213,8 @@ const RealTimeTemperatureChart = () => {
   const [monitorData, setMonitorData] = useState<MonitorData[]>([]);
   const [feverData, setFeverData] = useState<FeverData[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState("daily");
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [feverCount, setFeverCount] = useState<number>(0);
 
   useEffect(() => {
     const fetchMonitorData = async () => {
@@ -236,14 +242,27 @@ const RealTimeTemperatureChart = () => {
     };
 
     const fetchFeverData = async () => {
-      const { data: fever } = await supabase
+      let query = supabase
         .from("fever_log")
         .select("*")
         .order("detected_at", { ascending: true });
 
+      if (selectedDate) {
+        const startOfDay = dayjs(selectedDate).startOf("day").toISOString();
+        const endOfDay = dayjs(selectedDate).endOf("day").toISOString();
+        query = query
+          .gte("detected_at", startOfDay)
+          .lte("detected_at", endOfDay);
+      }
+
+      const { data: fever } = await query;
+
       if (fever) {
-        const uniqueData = removeDuplicatesBySeconds(fever, "detected_at");
-        setFeverData(uniqueData);
+        setFeverData(fever);
+        setFeverCount(fever.length);
+      } else {
+        setFeverData([]);
+        setFeverCount(0);
       }
     };
 
@@ -274,11 +293,15 @@ const RealTimeTemperatureChart = () => {
         { event: "INSERT", schema: "public", table: "fever_log" },
         (payload) => {
           setFeverData((prevData) => {
-            return removeDuplicatesBySeconds(
+            const newData = removeDuplicatesBySeconds(
               [...prevData, payload.new],
               "detected_at"
             );
+            return newData.filter((entry) =>
+              dayjs(entry.detected_at).isSame(selectedDate, "day")
+            );
           });
+          setFeverCount((prevCount) => prevCount + 1);
         }
       )
       .subscribe();
@@ -287,7 +310,7 @@ const RealTimeTemperatureChart = () => {
       supabase.removeChannel(monitorSubscription);
       supabase.removeChannel(feverSubscription);
     };
-  }, [selectedPeriod]);
+  }, [selectedPeriod, selectedDate]);
 
   const removeDuplicatesBySeconds = (data: any[], dateField: string): any[] => {
     const seen = new Set();
@@ -353,14 +376,17 @@ const RealTimeTemperatureChart = () => {
     {
       accessorKey: "min_temperature",
       header: "Min Temperature",
+      cell: (info) => info.getValue().toFixed(2),
     },
     {
       accessorKey: "max_temperature",
       header: "Max Temperature",
+      cell: (info) => info.getValue().toFixed(2),
     },
     {
       accessorKey: "avg_temperature",
       header: "Avg Temperature",
+      cell: (info) => info.getValue().toFixed(2),
     },
   ];
 
@@ -373,14 +399,17 @@ const RealTimeTemperatureChart = () => {
     {
       accessorKey: "min_temperature",
       header: "Min Temperature",
+      cell: (info) => info.getValue().toFixed(2),
     },
     {
       accessorKey: "max_temperature",
       header: "Max Temperature",
+      cell: (info) => info.getValue().toFixed(2),
     },
     {
       accessorKey: "avg_temperature",
       header: "Avg Temperature",
+      cell: (info) => info.getValue().toFixed(2),
     },
   ];
 
@@ -500,15 +529,66 @@ const RealTimeTemperatureChart = () => {
             </CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="fever">
-          <Card className="max-w-full mt-6">
-            <CardHeader>
-              <div className="text-xl font-semibold text-center">Fever Log</div>
-            </CardHeader>
-            <CardContent>
+        <TabsContent className="flex flex-col gap-2 mt-6" value="fever">
+          <Card className="max-w-full">
+            <CardContent className="mt-6">
+              <div className="flex items-center justify-start w-full mb-4">
+                <DatePickerWithPresets onDateChange={setSelectedDate} />
+              </div>
               <DataTable columns={feverColumns} data={feverData} />
             </CardContent>
           </Card>
+          <Indicator
+            title={
+              "Total Count of Fever Detected" +
+              (selectedDate
+                ? " on " + dayjs(selectedDate).format("MM/DD/YYYY")
+                : "")
+            }
+            amount={
+              feverData.length
+                ? `${feverData.length} ${
+                    feverData.length > 1 ? "Times" : "Time"
+                  }`
+                : "N/A"
+            }
+          />
+          <Indicator
+            title={`
+              Min Temperature ${
+                feverData.length
+                  ? selectedDate
+                    ? "on " + dayjs(selectedDate).format("MM/DD/YYYY")
+                    : ""
+                  : ""
+              }
+            `}
+            amount={
+              feverData.length
+                ? `${Math.min(
+                    ...feverData.map((entry) => entry.min_temperature)
+                  ).toFixed(2)}°`
+                : "N/A"
+            }
+          />
+          <Indicator
+            title={`
+              Max Temperature ${
+                feverData.length
+                  ? selectedDate
+                    ? "on " + dayjs(selectedDate).format("MM/DD/YYYY")
+                    : ""
+                  : ""
+              }
+            `}
+            amount={
+              feverData.length
+                ? `${Math.max(
+                    ...feverData.map((entry) => entry.max_temperature)
+                  ).toFixed(2)}°`
+                : "N/A"
+            }
+          />
         </TabsContent>
       </Tabs>
     </div>
