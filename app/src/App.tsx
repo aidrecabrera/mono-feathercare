@@ -24,7 +24,7 @@ const App: React.FC = () => {
     setLastRefreshed(new Date());
     try {
       const response = await axios.get<ThermalData>(
-        "http://localhost:5000/thermal_data"
+        "http://192.168.0.159:5000/thermal_data"
       );
       setData(response.data);
     } catch (error) {
