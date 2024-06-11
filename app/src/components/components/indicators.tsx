@@ -14,7 +14,7 @@ export default function Indicator({
   const isHighFever = title === "High Fever" && amount === "Detected";
   const temperatureColor =
     title.includes("Temperature") && !title.includes("High Fever")
-      ? parseFloat(amount) >= 38
+      ? parseFloat(amount) >= 40.6
         ? "text-red-500"
         : parseFloat(amount) >= 36
         ? "text-yellow-500"

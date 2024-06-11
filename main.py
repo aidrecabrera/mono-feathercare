@@ -25,10 +25,10 @@ CONFIG = {
     "serial_port": "/dev/ttyUSB0",
     "baud_rate": 9600,
     "buzzer_pin": 23,
-    "temperature_threshold": 34,
-    "check_interval": 10,
+    "temperature_threshold": 40.6,
+    "check_interval": 30,
     "buzzer_frequency": 2000,
-    "buzzer_duration": 5,  # Duration for start buzz
+    "buzzer_duration": 2.5,  # Duration for start buzz
     "min_hue": 180,
     "max_hue": 360,
     "pixel_size": 30,
