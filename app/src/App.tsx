@@ -1,5 +1,6 @@
 import Indicator from "@/components/components/indicators";
 import { SliderBlur } from "@/components/components/slider-blur";
+import RealTimeTemperatureChart from "@/components/components/thermal-graph";
 import ThermalHeatmap from "@/components/thermal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -79,21 +80,6 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-2">
-      <Card className="w-full">
-        <CardHeader>
-          <h1 className="text-lg font-medium md:text-xl">
-            Realtime Live Heatmap of Thermal Camera
-          </h1>
-          <p>Freebird Detection using Thermal Sensing for Brooding Chicks</p>
-        </CardHeader>
-        <CardContent className="flex items-center justify-center w-full h-full">
-          {data ? (
-            <ThermalHeatmap data={data} blurRadius={config.blurRadius} />
-          ) : (
-            <Skeleton className="w-[320px] h-[240px]"></Skeleton>
-          )}
-        </CardContent>
-      </Card>
       <div>
         <Indicator
           title="High Fever"
@@ -115,6 +101,23 @@ const App: React.FC = () => {
           amount={data ? `${averageTemp(data.frame).toFixed(2)}°` : "N/A"}
         />
       </div>
+
+      <Card className="w-full">
+        <CardHeader>
+          <h1 className="text-lg font-medium md:text-xl">
+            Realtime Live Heatmap of Thermal Camera
+          </h1>
+          <p>Fever Detection using Thermal Sensing for Brooding Chicks</p>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center w-full h-full">
+          {data ? (
+            <ThermalHeatmap data={data} blurRadius={config.blurRadius} />
+          ) : (
+            <Skeleton className="w-[320px] h-[240px]"></Skeleton>
+          )}
+        </CardContent>
+      </Card>
+      <RealTimeTemperatureChart />
       <div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
