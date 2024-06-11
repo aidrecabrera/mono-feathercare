@@ -142,7 +142,7 @@ const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
     const colorScaleWidth = CONFIG.width / 5;
 
     const colorScale = d3
-      .scaleSequential(d3.interpolateBuPu)
+      .scaleSequential(d3.interpolateRainbow)
       .domain([minHet, maxHet]);
 
     for (let i = 0; i < 5; i++) {
