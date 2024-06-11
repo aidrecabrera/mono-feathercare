@@ -33,7 +33,8 @@ const getDefaultConfig = () => ({
   ),
   blurRadius: parseFloat(localStorage.getItem("blurRadius") || "8"),
   apiUrl:
-    localStorage.getItem("apiUrl") || "http://192.168.0.159:5000/thermal_data",
+    localStorage.getItem("apiUrl") ||
+    "http://192.168.254.107:5000/thermal_data",
 });
 
 const App: React.FC = () => {
