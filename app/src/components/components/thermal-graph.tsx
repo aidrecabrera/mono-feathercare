@@ -220,17 +220,49 @@ const RealTimeTemperatureChart = () => {
       const { data: monitor } = await query;
 
       if (monitor) {
-        const aggregatedData = aggregateData(monitor, selectedPeriod);
+        const uniqueData = removeDuplicatesByDateTime(monitor);
+        const aggregatedData = aggregateData(uniqueData, selectedPeriod);
         setMonitorData(aggregatedData);
       }
     };
 
     fetchData();
 
-    const intervalId = setInterval(fetchData, 1000);
+    const monitorSubscription = supabase
+      .channel("monitor_log")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "monitor_log" },
+        (payload) => {
+          setMonitorData((prevData) => {
+            console.log("New data", payload.new);
+            const newData = removeDuplicatesByDateTime([
+              ...prevData,
+              payload.new,
+            ]);
+            return aggregateData(newData, selectedPeriod);
+          });
+        }
+      )
+      .subscribe();
 
-    return () => clearInterval(intervalId);
+    return () => {
+      supabase.removeChannel(monitorSubscription);
+    };
   }, [selectedPeriod]);
+
+  const removeDuplicatesByDateTime = (data: MonitorData[]): MonitorData[] => {
+    const seen = new Set();
+    return data.filter((item) => {
+      // Normalize to date and time to the minute
+      const dateTimeKey = dayjs(item.logged_at).format("YYYY-MM-DD HH:mm");
+      if (seen.has(dateTimeKey)) {
+        return false;
+      }
+      seen.add(dateTimeKey);
+      return true;
+    });
+  };
 
   const aggregateData = (
     data: MonitorData[],
