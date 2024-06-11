@@ -2,12 +2,14 @@ import os
 import sys
 import threading
 import time
-import sqlite3
 import requests
 import seeed_mlx9064x
 from serial import Serial
 from flask import Flask, jsonify
 from flask_cors import CORS
+from sqlalchemy import create_engine, Column, Integer, Float, DateTime
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 from PyQt5.QtWidgets import (
     QApplication,
     QGraphicsView,
@@ -24,6 +26,7 @@ from PyQt5.QtCore import QThread, pyqtSignal, Qt, QTimer, QObject, pyqtSlot
 import serial
 import RPi.GPIO as GPIO
 from supabase import create_client
+from datetime import datetime
 
 CONFIG = {
     "serial_port": "/dev/ttyUSB0",
@@ -51,6 +54,13 @@ SUPABASE_URL = "https://ofwutctiuezihlprbwqs.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9md3V0Y3RpdWV6aWhscHJid3FzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTgwOTIwODUsImV4cCI6MjAzMzY2ODA4NX0.RMO9URsAmSRpVd7RPWFmpdz6wmfHM1i_qQohCNfSyoc"
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+DATABASE_URL = "sqlite:///thermal_data.db"
+
+Base = declarative_base()
+engine = create_engine(DATABASE_URL)
+Session = sessionmaker(bind=engine)
+session = Session()
+
 hetaData = {"frame": [], "maxHet": 0, "minHet": 0}
 lock = threading.Lock()
 minHue = CONFIG["min_hue"]
@@ -58,6 +68,24 @@ maxHue = CONFIG["max_hue"]
 
 flask_app = Flask(__name__)
 CORS(flask_app)
+
+class FeverLog(Base):
+    __tablename__ = "fever_log"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    detected_at = Column(DateTime, default=datetime.utcnow)
+    min_temperature = Column(Float)
+    max_temperature = Column(Float)
+    avg_temperature = Column(Float)
+
+class MonitorLog(Base):
+    __tablename__ = "monitor_log"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    logged_at = Column(DateTime, default=datetime.utcnow)
+    min_temperature = Column(Float)
+    max_temperature = Column(Float)
+    avg_temperature = Column(Float)
+
+Base.metadata.create_all(engine)
 
 class BinNotificationSystem:
     def __init__(self, port=CONFIG["serial_port"], baud_rate=CONFIG["baud_rate"]):
@@ -423,47 +451,42 @@ def thermal_data():
     return jsonify(data)
 
 def log_to_db(table_name):
-    conn = sqlite3.connect("thermal_data.db")
-    cur = conn.cursor()
     if table_name == "fever_log":
-        cur.execute('''CREATE TABLE IF NOT EXISTS fever_log 
-                       (detected_at TEXT, min_temperature REAL, max_temperature REAL, avg_temperature REAL)''')
-        cur.execute('''INSERT INTO fever_log (detected_at, min_temperature, max_temperature, avg_temperature) 
-                       VALUES (datetime('now'), ?, ?, ?)''', 
-                    (hetaData["minHet"], hetaData["maxHet"], sum(hetaData["frame"]) / len(hetaData["frame"])))
+        new_log = FeverLog(
+            min_temperature=hetaData["minHet"],
+            max_temperature=hetaData["maxHet"],
+            avg_temperature=sum(hetaData["frame"]) / len(hetaData["frame"])
+        )
     else:
-        cur.execute('''CREATE TABLE IF NOT EXISTS monitor_log 
-                       (logged_at TEXT, min_temperature REAL, max_temperature REAL, avg_temperature REAL)''')
-        cur.execute('''INSERT INTO monitor_log (logged_at, min_temperature, max_temperature, avg_temperature) 
-                       VALUES (datetime('now'), ?, ?, ?)''', 
-                    (hetaData["minHet"], hetaData["maxHet"], sum(hetaData["frame"]) / len(hetaData["frame"])))
-    conn.commit()
-    conn.close()
+        new_log = MonitorLog(
+            min_temperature=hetaData["minHet"],
+            max_temperature=hetaData["maxHet"],
+            avg_temperature=sum(hetaData["frame"]) / len(hetaData["frame"])
+        )
+    session.add(new_log)
+    session.commit()
     threading.Thread(target=sync_to_supabase, args=(table_name,)).start()
 
 def sync_to_supabase(table_name):
     if requests.get("http://www.google.com").status_code == 200:
-        conn = sqlite3.connect("thermal_data.db")
-        cur = conn.cursor()
-        cur.execute(f"SELECT * FROM {table_name}")
-        rows = cur.fetchall()
         if table_name == "fever_log":
+            logs = session.query(FeverLog).all()
             data = [{
-                "detected_at": row[0],
-                "min_temperature": row[1],
-                "max_temperature": row[2],
-                "avg_temperature": row[3]
-            } for row in rows]
+                "detected_at": log.detected_at.isoformat(),
+                "min_temperature": log.min_temperature,
+                "max_temperature": log.max_temperature,
+                "avg_temperature": log.avg_temperature
+            } for log in logs]
             supabase.table("fever_log").upsert(data, ignore_duplicates=True).execute()
         else:
+            logs = session.query(MonitorLog).all()
             data = [{
-                "logged_at": row[0],
-                "min_temperature": row[1],
-                "max_temperature": row[2],
-                "avg_temperature": row[3]
-            } for row in rows]
+                "logged_at": log.logged_at.isoformat(),
+                "min_temperature": log.min_temperature,
+                "max_temperature": log.max_temperature,
+                "avg_temperature": log.avg_temperature
+            } for log in logs]
             supabase.table("monitor_log").upsert(data, ignore_duplicates=True).execute()
-        conn.close()
 
 def initial_buzz():
     buzzer.duration = 2
