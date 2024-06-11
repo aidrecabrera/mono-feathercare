@@ -103,10 +103,6 @@ const App: React.FC = () => {
       </div>
       <Card className="w-full">
         <CardHeader>
-          <img
-            src="https://i.ibb.co/q5fJ4Sf/DALL-E-2024-06-11-22-15-55-Create-a-minimalist-logo-on-a-white-background-The-logo-features-two-chic.webp"
-            alt="FeatherCare Logo"
-          />
           <h1 className="text-lg font-medium md:text-xl">
             Realtime Live Heatmap of Thermal Camera
           </h1>
