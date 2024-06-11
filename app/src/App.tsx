@@ -53,7 +53,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 3000);
+    const interval = setInterval(fetchData, 300);
     return () => clearInterval(interval);
   }, [config.apiUrl]);
 
