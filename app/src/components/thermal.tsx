@@ -18,7 +18,7 @@ const CONFIG = {
   numRows: 12,
   fontSize: 30,
   centerIndex: 95,
-  blurRadius: 5,
+  blurRadius: 5, // Adjust blur radius here
 };
 
 const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
@@ -38,8 +38,11 @@ const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
 
     svg.selectAll("*").remove();
 
+    // Create a color scale for smoother transitions from blue to red
     const colorScale = d3
-      .scaleSequential(d3.interpolateCool)
+      .scaleSequential((d) =>
+        d3.hsl(mapValue(d, minHet, maxHet, 240, 360)).toString()
+      )
       .domain([minHet, maxHet]);
 
     svg
@@ -64,11 +67,8 @@ const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
       .attr("height", pixelHeight)
       .attr("fill", (d: number) => colorScale(d));
 
-    // @ts-ignore
     drawCrosshair(svg, pixelWidth, pixelHeight);
-    // @ts-ignore
     drawTemperatureText(svg, frame, pixelWidth, pixelHeight);
-    // @ts-ignore
     drawColorScale(svg, minHet, maxHet);
   };
 
@@ -142,7 +142,9 @@ const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
     const colorScaleWidth = CONFIG.width / 5;
 
     const colorScale = d3
-      .scaleSequential(d3.interpolateCool)
+      .scaleSequential((d) =>
+        d3.hsl(mapValue(d, minHet, maxHet, 240, 360)).toString()
+      )
       .domain([minHet, maxHet]);
 
     for (let i = 0; i < 5; i++) {
@@ -163,6 +165,16 @@ const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
         .attr("text-anchor", "middle")
         .text(`${temp.toFixed(0)}°`);
     }
+  };
+
+  const mapValue = (
+    value: number,
+    inMin: number,
+    inMax: number,
+    outMin: number,
+    outMax: number
+  ): number => {
+    return ((value - inMin) * (outMax - outMin)) / (inMax - inMin) + outMin;
   };
 
   return <svg ref={svgRef} width={CONFIG.width} height={CONFIG.height + 50} />;
