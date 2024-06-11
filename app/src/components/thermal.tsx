@@ -18,6 +18,7 @@ const CONFIG = {
   numRows: 12,
   fontSize: 30,
   centerIndex: 95,
+  blurRadius: 5,
 };
 
 const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
@@ -38,11 +39,19 @@ const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
     svg.selectAll("*").remove();
 
     const colorScale = d3
-      .scaleSequential(d3.interpolateHsl("blue", "red"))
+      .scaleSequential(d3.interpolateCool)
       .domain([minHet, maxHet]);
 
     svg
-      .selectAll("rect")
+      .append("defs")
+      .append("filter")
+      .attr("id", "blur")
+      .append("feGaussianBlur")
+      .attr("stdDeviation", CONFIG.blurRadius);
+
+    const g = svg.append("g").attr("filter", "url(#blur)");
+
+    g.selectAll("rect")
       .data(frame)
       .enter()
       .append("rect")
@@ -55,8 +64,11 @@ const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
       .attr("height", pixelHeight)
       .attr("fill", (d: number) => colorScale(d));
 
+    // @ts-ignore
     drawCrosshair(svg, pixelWidth, pixelHeight);
+    // @ts-ignore
     drawTemperatureText(svg, frame, pixelWidth, pixelHeight);
+    // @ts-ignore
     drawColorScale(svg, minHet, maxHet);
   };
 
@@ -130,7 +142,7 @@ const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
     const colorScaleWidth = CONFIG.width / 5;
 
     const colorScale = d3
-      .scaleSequential(d3.interpolateHsl("blue", "red"))
+      .scaleSequential(d3.interpolateCool)
       .domain([minHet, maxHet]);
 
     for (let i = 0; i < 5; i++) {
