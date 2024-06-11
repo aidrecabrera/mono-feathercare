@@ -233,8 +233,7 @@ const RealTimeTemperatureChart = () => {
       const { data: monitor } = await query;
 
       if (monitor) {
-        const uniqueData = removeDuplicatesBySeconds(monitor, "logged_at");
-        const aggregatedData = aggregateData(uniqueData, selectedPeriod);
+        const aggregatedData = aggregateData(monitor, selectedPeriod);
         setMonitorData(aggregatedData);
       }
     };
@@ -274,10 +273,7 @@ const RealTimeTemperatureChart = () => {
         { event: "INSERT", schema: "public", table: "monitor_log" },
         (payload) => {
           setMonitorData((prevData) => {
-            const newData = removeDuplicatesBySeconds(
-              [...prevData, payload.new],
-              "logged_at"
-            );
+            const newData = [...prevData, payload.new];
             return aggregateData(newData, selectedPeriod);
           });
         }
@@ -291,10 +287,7 @@ const RealTimeTemperatureChart = () => {
         { event: "INSERT", schema: "public", table: "fever_log" },
         (payload) => {
           setFeverData((prevData) => {
-            const newData = removeDuplicatesBySeconds(
-              [...prevData, payload.new],
-              "detected_at"
-            );
+            const newData = [...prevData, payload.new];
             return newData.filter((entry) =>
               dayjs(entry.detected_at).isSame(selectedDate, "day")
             );
@@ -309,18 +302,6 @@ const RealTimeTemperatureChart = () => {
       supabase.removeChannel(feverSubscription);
     };
   }, [selectedPeriod, selectedDate]);
-
-  const removeDuplicatesBySeconds = (data: any[], dateField: string): any[] => {
-    const seen = new Set();
-    return data.filter((item) => {
-      const dateTimeKey = dayjs(item[dateField]).format("YYYY-MM-DD HH:mm:ss");
-      if (seen.has(dateTimeKey)) {
-        return false;
-      }
-      seen.add(dateTimeKey);
-      return true;
-    });
-  };
 
   const aggregateData = (
     data: MonitorData[],
