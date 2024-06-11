@@ -514,17 +514,17 @@ def run():
     else:
         port = None
     qt_app = QApplication(sys.argv)
-    window = painter()
-    dataThread = DataReader(port)
-    dataThread.drawRequire.connect(window.draw)
-    dataThread.start()
-    window.show()
+    # window = painter()
+    # dataThread = DataReader(port)
+    # dataThread.drawRequire.connect(window.draw)
+    # dataThread.start()
+    # window.show()
 
     flask_thread = threading.Thread(target=lambda: flask_app.run(host="0.0.0.0", port=5000))
     flask_thread.daemon = True
     flask_thread.start()
 
-    qt_app.exec_()
+    # qt_app.exec_()
 
     bin_notification.close()
     cleanup()
