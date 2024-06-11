@@ -4,6 +4,7 @@ import time
 import seeed_mlx9064x
 from serial import Serial
 from flask import Flask, jsonify
+from flask_cors import CORS
 from PyQt5.QtWidgets import (
     QApplication,
     QGraphicsView,
@@ -48,6 +49,7 @@ minHue = CONFIG["min_hue"]
 maxHue = CONFIG["max_hue"]
 
 flask_app = Flask(__name__)
+CORS(flask_app, resources={r"/thermal_data": {"origins": "http://localhost:5173"}})
 
 class BinNotificationSystem:
     def __init__(self, port=CONFIG["serial_port"], baud_rate=CONFIG["baud_rate"]):
