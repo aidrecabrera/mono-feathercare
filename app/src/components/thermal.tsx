@@ -18,7 +18,7 @@ const CONFIG = {
   numRows: 12,
   fontSize: 30,
   centerIndex: 95,
-  blurRadius: 15,
+  blurRadius: 13,
 };
 
 const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
