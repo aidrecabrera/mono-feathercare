@@ -18,6 +18,7 @@ const CONFIG = {
   numRows: 12,
   fontSize: 30,
   centerIndex: 95,
+  blurRadius: 8,
 };
 
 const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
@@ -38,7 +39,15 @@ const ThermalHeatmap: React.FC<ThermalHeatmapProps> = ({ data }) => {
     svg.selectAll("*").remove();
 
     svg
-      .selectAll("rect")
+      .append("defs")
+      .append("filter")
+      .attr("id", "blur")
+      .append("feGaussianBlur")
+      .attr("stdDeviation", CONFIG.blurRadius);
+
+    const g = svg.append("g").attr("filter", "url(#blur)");
+
+    g.selectAll("rect")
       .data(frame)
       .enter()
       .append("rect")
