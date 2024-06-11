@@ -38,6 +38,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowLeft,
   ArrowRight,
@@ -51,6 +52,13 @@ interface MonitorData {
   max_temperature: number;
   avg_temperature: number;
   dateKey?: string;
+}
+
+interface FeverData {
+  detected_at: string;
+  min_temperature: number;
+  max_temperature: number;
+  avg_temperature: number;
 }
 
 interface DataTableProps<TData, TValue> {
@@ -199,10 +207,11 @@ function DataTablePagination<TData>({
 
 const RealTimeTemperatureChart = () => {
   const [monitorData, setMonitorData] = useState<MonitorData[]>([]);
+  const [feverData, setFeverData] = useState<FeverData[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState("daily");
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchMonitorData = async () => {
       let query = supabase
         .from("monitor_log")
         .select("*")
@@ -220,13 +229,26 @@ const RealTimeTemperatureChart = () => {
       const { data: monitor } = await query;
 
       if (monitor) {
-        const uniqueData = removeDuplicatesByDateTime(monitor);
+        const uniqueData = removeDuplicatesBySeconds(monitor, "logged_at");
         const aggregatedData = aggregateData(uniqueData, selectedPeriod);
         setMonitorData(aggregatedData);
       }
     };
 
-    fetchData();
+    const fetchFeverData = async () => {
+      const { data: fever } = await supabase
+        .from("fever_log")
+        .select("*")
+        .order("detected_at", { ascending: true });
+
+      if (fever) {
+        const uniqueData = removeDuplicatesBySeconds(fever, "detected_at");
+        setFeverData(uniqueData);
+      }
+    };
+
+    fetchMonitorData();
+    fetchFeverData();
 
     const monitorSubscription = supabase
       .channel("monitor_log")
@@ -235,12 +257,27 @@ const RealTimeTemperatureChart = () => {
         { event: "INSERT", schema: "public", table: "monitor_log" },
         (payload) => {
           setMonitorData((prevData) => {
-            console.log("New data", payload.new);
-            const newData = removeDuplicatesByDateTime([
-              ...prevData,
-              payload.new,
-            ]);
+            const newData = removeDuplicatesBySeconds(
+              [...prevData, payload.new],
+              "logged_at"
+            );
             return aggregateData(newData, selectedPeriod);
+          });
+        }
+      )
+      .subscribe();
+
+    const feverSubscription = supabase
+      .channel("fever_log")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "fever_log" },
+        (payload) => {
+          setFeverData((prevData) => {
+            return removeDuplicatesBySeconds(
+              [...prevData, payload.new],
+              "detected_at"
+            );
           });
         }
       )
@@ -248,14 +285,14 @@ const RealTimeTemperatureChart = () => {
 
     return () => {
       supabase.removeChannel(monitorSubscription);
+      supabase.removeChannel(feverSubscription);
     };
   }, [selectedPeriod]);
 
-  const removeDuplicatesByDateTime = (data: MonitorData[]): MonitorData[] => {
+  const removeDuplicatesBySeconds = (data: any[], dateField: string): any[] => {
     const seen = new Set();
     return data.filter((item) => {
-      // Normalize to date and time to the minute
-      const dateTimeKey = dayjs(item.logged_at).format("YYYY-MM-DD HH:mm");
+      const dateTimeKey = dayjs(item[dateField]).format("YYYY-MM-DD HH:mm:ss");
       if (seen.has(dateTimeKey)) {
         return false;
       }
@@ -307,9 +344,29 @@ const RealTimeTemperatureChart = () => {
     return aggregated;
   };
 
-  const columns: ColumnDef<MonitorData, any>[] = [
+  const monitorColumns: ColumnDef<MonitorData, any>[] = [
     {
       accessorKey: "logged_at",
+      header: "Date/Time",
+      cell: (info) => dayjs(info.getValue()).format("MM/DD/YYYY h:mm A"),
+    },
+    {
+      accessorKey: "min_temperature",
+      header: "Min Temperature",
+    },
+    {
+      accessorKey: "max_temperature",
+      header: "Max Temperature",
+    },
+    {
+      accessorKey: "avg_temperature",
+      header: "Avg Temperature",
+    },
+  ];
+
+  const feverColumns: ColumnDef<FeverData, any>[] = [
+    {
+      accessorKey: "detected_at",
       header: "Date/Time",
       cell: (info) => dayjs(info.getValue()).format("MM/DD/YYYY h:mm A"),
     },
@@ -426,16 +483,34 @@ const RealTimeTemperatureChart = () => {
         </CardContent>
       </Card>
 
-      <Card className="max-w-full mt-6">
-        <CardHeader>
-          <div className="text-xl font-semibold text-center">
-            Temperature Data Table
-          </div>
-        </CardHeader>
-        <CardContent>
-          <DataTable columns={columns} data={monitorData} />
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="temperature">
+        <TabsList className="mt-4 -mb-4">
+          <TabsTrigger value="temperature">Temperature Data Table</TabsTrigger>
+          <TabsTrigger value="fever">Fever Log</TabsTrigger>
+        </TabsList>
+        <TabsContent value="temperature">
+          <Card className="max-w-full mt-6">
+            <CardHeader>
+              <div className="text-xl font-semibold text-center">
+                Temperature Data Table
+              </div>
+            </CardHeader>
+            <CardContent>
+              <DataTable columns={monitorColumns} data={monitorData} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="fever">
+          <Card className="max-w-full mt-6">
+            <CardHeader>
+              <div className="text-xl font-semibold text-center">Fever Log</div>
+            </CardHeader>
+            <CardContent>
+              <DataTable columns={feverColumns} data={feverData} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
