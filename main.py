@@ -277,8 +277,8 @@ def periodic_check():
         frame = hetaData["frame"]
         high_temps = [temp for temp in frame if temp > CONFIG["temperature_threshold"]]
         if high_temps:
-            bin_notification.send_notification('notify')
             log_to_db("fever_log")
+            bin_notification.send_notification('notify')
             activate_buzzer(CONFIG["buzzer_duration"])
         log_to_db("monitor_log")
 

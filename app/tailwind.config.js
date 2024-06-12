@@ -76,5 +76,27 @@ module.exports = {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [
+    function ({ addUtilities }) {
+      const newUtilities = {
+        ".print\\:hidden": {
+          "@media print": {
+            display: "none",
+          },
+        },
+        ".print\\:block": {
+          "@media print": {
+            display: "block",
+          },
+        },
+        ".print\\:inline": {
+          "@media print": {
+            display: "inline",
+          },
+        },
+      };
+      addUtilities(newUtilities, ["responsive", "hover"]);
+    },
+    require("tailwindcss-animate"),
+  ],
 };

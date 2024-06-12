@@ -19,15 +19,15 @@ import {
 import { cn } from "@/lib/utils";
 
 interface DatePickerWithPresetsProps {
-  onDateChange: (date: Date | null) => void;
+  onDateChange: (date: Date | undefined) => void;
 }
 
 export function DatePickerWithPresets({
   onDateChange,
 }: DatePickerWithPresetsProps) {
-  const [date, setDate] = React.useState<Date | null>(null);
+  const [date, setDate] = React.useState<Date | undefined>(undefined);
 
-  const handleDateChange = (newDate: Date | null) => {
+  const handleDateChange = (newDate: Date | undefined) => {
     setDate(newDate);
     onDateChange(newDate);
   };

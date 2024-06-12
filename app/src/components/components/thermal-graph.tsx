@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import dayjs from "dayjs";
 import { useEffect, useState } from "react";
+import { useMediaQuery } from "react-responsive";
 import {
   CartesianGrid,
   Legend,
@@ -211,15 +212,16 @@ const RealTimeTemperatureChart = () => {
   const [monitorData, setMonitorData] = useState<MonitorData[]>([]);
   const [feverData, setFeverData] = useState<FeverData[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState("daily");
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [feverCount, setFeverCount] = useState<number>(0);
+  const isPrintMode = useMediaQuery({ query: "print" });
 
   useEffect(() => {
     const fetchMonitorData = async () => {
       let query = supabase
         .from("monitor_log")
         .select("*")
-        .order("logged_at", { ascending: true });
+        .order("logged_at", { ascending: false });
 
       const now = dayjs();
       if (selectedPeriod === "daily") {
@@ -234,7 +236,7 @@ const RealTimeTemperatureChart = () => {
 
       if (monitor) {
         const aggregatedData = aggregateData(monitor, selectedPeriod);
-        setMonitorData(aggregatedData);
+        setMonitorData(filterDataByDate(aggregatedData, selectedDate));
       }
     };
 
@@ -273,8 +275,19 @@ const RealTimeTemperatureChart = () => {
         { event: "INSERT", schema: "public", table: "monitor_log" },
         (payload) => {
           setMonitorData((prevData) => {
-            const newData = [...prevData, payload.new];
-            return aggregateData(newData, selectedPeriod);
+            if (
+              "logged_at" in payload.new &&
+              "min_temperature" in payload.new &&
+              "max_temperature" in payload.new &&
+              "avg_temperature" in payload.new
+            ) {
+              const newData = [...prevData, payload.new as MonitorData];
+              return filterDataByDate(
+                aggregateData(newData, selectedPeriod),
+                selectedDate
+              );
+            }
+            return prevData;
           });
         }
       )
@@ -286,11 +299,17 @@ const RealTimeTemperatureChart = () => {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "fever_log" },
         (payload) => {
+          // @ts-ignore
           setFeverData((prevData) => {
-            const newData = [...prevData, payload.new];
-            return newData.filter((entry) =>
-              dayjs(entry.detected_at).isSame(selectedDate, "day")
-            );
+            const newEntry: FeverData = {
+              detected_at: payload.new.detected_at || new Date(),
+              min_temperature: payload.new.min_temperature || 0,
+              max_temperature: payload.new.max_temperature || 0,
+              avg_temperature: payload.new.avg_temperature || 0,
+            };
+            const newData = [...prevData, newEntry];
+            // @ts-ignore
+            return filterDataByDate(newData, selectedDate);
           });
           setFeverCount((prevCount) => prevCount + 1);
         }
@@ -344,6 +363,20 @@ const RealTimeTemperatureChart = () => {
     });
 
     return aggregated;
+  };
+
+  const filterDataByDate = <T extends { logged_at: string }>(
+    data: T[],
+    date?: Date
+  ): T[] => {
+    if (!date) return data;
+
+    const startOfDay = dayjs(date).startOf("day").toISOString();
+    const endOfDay = dayjs(date).endOf("day").toISOString();
+
+    return data.filter(
+      (item) => item.logged_at >= startOfDay && item.logged_at <= endOfDay
+    );
   };
 
   const monitorColumns: ColumnDef<MonitorData, any>[] = [
@@ -491,12 +524,94 @@ const RealTimeTemperatureChart = () => {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="temperature">
-        <TabsList className="mt-4 -mb-4">
-          <TabsTrigger value="temperature">Temperature Data Table</TabsTrigger>
-          <TabsTrigger value="fever">Fever Log</TabsTrigger>
-        </TabsList>
-        <TabsContent value="temperature">
+      {!isPrintMode && (
+        <Tabs defaultValue="temperature">
+          <div className="flex items-center justify-center gap-2 mt-4 -mb-2">
+            <DatePickerWithPresets onDateChange={setSelectedDate} />
+            <TabsList className="flex-grow max-w-sm">
+              <TabsTrigger className="w-full" value="temperature">
+                Temperature Logs
+              </TabsTrigger>
+              <TabsTrigger className="w-full" value="fever">
+                Fever Logs
+              </TabsTrigger>
+            </TabsList>
+          </div>
+          <TabsContent value="temperature">
+            <Card className="max-w-full mt-6">
+              <CardHeader>
+                <div className="text-xl font-semibold text-center">
+                  Temperature Logs
+                </div>
+              </CardHeader>
+              <CardContent>
+                <DataTable columns={monitorColumns} data={monitorData} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent className="flex flex-col gap-2 mt-6" value="fever">
+            <Card className="max-w-full">
+              <CardHeader>
+                <div className="text-xl font-semibold text-center">
+                  Fever Logs
+                </div>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <DataTable columns={feverColumns} data={feverData} />
+                <Indicator
+                  title={
+                    "Total Count of Fever Detected" +
+                    (selectedDate
+                      ? " on " + dayjs(selectedDate).format("MM/DD/YYYY")
+                      : "")
+                  }
+                  amount={
+                    feverData.length
+                      ? `${feverData.length} ${
+                          feverData.length > 1 ? "Times" : "Time"
+                        }`
+                      : "N/A"
+                  }
+                />
+                <Indicator
+                  title={`Min Temperature ${
+                    feverData.length
+                      ? selectedDate
+                        ? "on " + dayjs(selectedDate).format("MM/DD/YYYY")
+                        : ""
+                      : ""
+                  }`}
+                  amount={
+                    feverData.length
+                      ? `${Math.min(
+                          ...feverData.map((entry) => entry.min_temperature)
+                        ).toFixed(2)}°`
+                      : "N/A"
+                  }
+                />
+                <Indicator
+                  title={`Max Temperature ${
+                    feverData.length
+                      ? selectedDate
+                        ? "on " + dayjs(selectedDate).format("MM/DD/YYYY")
+                        : ""
+                      : ""
+                  }`}
+                  amount={
+                    feverData.length
+                      ? `${Math.max(
+                          ...feverData.map((entry) => entry.max_temperature)
+                        ).toFixed(2)}°`
+                      : "N/A"
+                  }
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      )}
+      {isPrintMode && (
+        <div>
           <Card className="max-w-full mt-6">
             <CardHeader>
               <div className="text-xl font-semibold text-center">
@@ -507,69 +622,63 @@ const RealTimeTemperatureChart = () => {
               <DataTable columns={monitorColumns} data={monitorData} />
             </CardContent>
           </Card>
-        </TabsContent>
-        <TabsContent className="flex flex-col gap-2 mt-6" value="fever">
-          <Card className="max-w-full">
-            <CardContent className="mt-6">
-              <div className="flex items-center justify-start w-full mb-4">
-                <DatePickerWithPresets onDateChange={setSelectedDate} />
-              </div>
+          <Card className="max-w-full mt-6">
+            <CardHeader>
+              <div className="text-xl font-semibold text-center">Fever Log</div>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-2">
               <DataTable columns={feverColumns} data={feverData} />
+              <Indicator
+                title={
+                  "Total Count of Fever Detected" +
+                  (selectedDate
+                    ? " on " + dayjs(selectedDate).format("MM/DD/YYYY")
+                    : "")
+                }
+                amount={
+                  feverData.length
+                    ? `${feverData.length} ${
+                        feverData.length > 1 ? "Times" : "Time"
+                      }`
+                    : "N/A"
+                }
+              />
+              <Indicator
+                title={`Min Temperature ${
+                  feverData.length
+                    ? selectedDate
+                      ? "on " + dayjs(selectedDate).format("MM/DD/YYYY")
+                      : ""
+                    : ""
+                }`}
+                amount={
+                  feverData.length
+                    ? `${Math.min(
+                        ...feverData.map((entry) => entry.min_temperature)
+                      ).toFixed(2)}°`
+                    : "N/A"
+                }
+              />
+              <Indicator
+                title={`Max Temperature ${
+                  feverData.length
+                    ? selectedDate
+                      ? "on " + dayjs(selectedDate).format("MM/DD/YYYY")
+                      : ""
+                    : ""
+                }`}
+                amount={
+                  feverData.length
+                    ? `${Math.max(
+                        ...feverData.map((entry) => entry.max_temperature)
+                      ).toFixed(2)}°`
+                    : "N/A"
+                }
+              />
             </CardContent>
           </Card>
-          <Indicator
-            title={
-              "Total Count of Fever Detected" +
-              (selectedDate
-                ? " on " + dayjs(selectedDate).format("MM/DD/YYYY")
-                : "")
-            }
-            amount={
-              feverData.length
-                ? `${feverData.length} ${
-                    feverData.length > 1 ? "Times" : "Time"
-                  }`
-                : "N/A"
-            }
-          />
-          <Indicator
-            title={`
-              Min Temperature ${
-                feverData.length
-                  ? selectedDate
-                    ? "on " + dayjs(selectedDate).format("MM/DD/YYYY")
-                    : ""
-                  : ""
-              }
-            `}
-            amount={
-              feverData.length
-                ? `${Math.min(
-                    ...feverData.map((entry) => entry.min_temperature)
-                  ).toFixed(2)}°`
-                : "N/A"
-            }
-          />
-          <Indicator
-            title={`
-              Max Temperature ${
-                feverData.length
-                  ? selectedDate
-                    ? "on " + dayjs(selectedDate).format("MM/DD/YYYY")
-                    : ""
-                  : ""
-              }
-            `}
-            amount={
-              feverData.length
-                ? `${Math.max(
-                    ...feverData.map((entry) => entry.max_temperature)
-                  ).toFixed(2)}°`
-                : "N/A"
-            }
-          />
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
     </div>
   );
 };

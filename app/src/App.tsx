@@ -2,6 +2,7 @@ import Indicator from "@/components/components/indicators";
 import { SliderBlur } from "@/components/components/slider-blur";
 import RealTimeTemperatureChart from "@/components/components/thermal-graph";
 import ThermalHeatmap from "@/components/thermal";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
@@ -15,10 +16,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import axios from "axios";
-import { Settings } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import { Settings, TriangleAlert } from "lucide-react";
+import React, { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import "./App.css";
 
 interface ThermalData {
@@ -37,26 +38,83 @@ const getDefaultConfig = () => ({
     "http://192.168.254.107:5000/thermal_data",
 });
 
+const useCheckConnection = (
+  url: string | URL | Request,
+  retries: number,
+  interval: number | undefined
+) => {
+  const [status, setStatus] = useState("");
+
+  const checkConnection = useCallback(() => {
+    return new Promise((resolve, reject) => {
+      let attempts = 0;
+      const ping = () => {
+        fetch(url)
+          .then((response) => {
+            console.log(response);
+            if (response.ok) {
+              console.log("Connection Established");
+              resolve({ name: "Connection Established" });
+            } else {
+              throw new Error("Network response was not ok");
+            }
+          })
+          .catch(() => {
+            if (attempts < retries) {
+              attempts++;
+              setTimeout(ping, interval);
+            } else {
+              reject(new Error("No Connection to Sensor"));
+            }
+          });
+      };
+      ping();
+    });
+  }, [url, retries, interval]);
+
+  useEffect(() => {
+    setStatus("Connecting...");
+    toast.promise(checkConnection, {
+      loading: "Connecting to " + getDefaultConfig().apiUrl,
+      success: () => "Connection Established to " + getDefaultConfig().apiUrl,
+      error: "No Connection to Sensor",
+    });
+  }, [checkConnection]);
+  return status;
+};
+
 const App: React.FC = () => {
   const [data, setData] = useState<ThermalData | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
   const [config, setConfig] = useState(getDefaultConfig());
   const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
+  const [isConnected, setIsConnected] = useState<boolean>(true);
 
   const fetchData = async () => {
+    if (!config.apiUrl) return;
+    if (!config.temperatureThreshold) return;
+    if (!config.blurRadius) return;
+    if (!config.apiUrl.startsWith("http")) return;
+    if (!config.apiUrl.includes("thermal_data")) return;
+    if (!config.temperatureThreshold) return;
+
     setLastRefreshed(new Date());
     try {
       const response = await axios.get<ThermalData>(config.apiUrl);
       setData(response.data);
+      setIsConnected(true);
     } catch (error) {
       console.error("Error fetching thermal data:", error);
+      setIsConnected(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 300);
-    return () => clearInterval(interval);
+    if (connectionStatus === "Connection Established") {
+      fetchData();
+      const interval = setInterval(fetchData, 300);
+      return () => clearInterval(interval);
+    }
   }, [config.apiUrl]);
 
   useEffect(() => {
@@ -79,16 +137,24 @@ const App: React.FC = () => {
     }));
   };
 
+  const [status, setStatus] = useState("");
+
+  const connectionStatus = useCheckConnection(config.apiUrl, 5, 2000);
+
+  useEffect(() => {
+    setStatus(connectionStatus);
+  }, [connectionStatus, config.apiUrl]);
+
   return (
     <div className="flex flex-col gap-2">
-      <div>
+      <div className=" print:hidden">
         <Indicator
           title="High Fever"
           amount={highFeverDetected ? "Detected" : "Not Detected"}
           lastRefreshed={lastRefreshed || undefined}
         />
       </div>
-      <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-3 print:hidden">
         <Indicator
           title="Min Temperature"
           amount={data ? `${Math.min(...data.frame).toFixed(2)}°` : "N/A"}
@@ -102,26 +168,33 @@ const App: React.FC = () => {
           amount={data ? `${averageTemp(data.frame).toFixed(2)}°` : "N/A"}
         />
       </div>
-      <Card className="w-full">
-        <CardHeader>
-          <h1 className="text-lg font-medium md:text-xl">
-            Realtime Live Heatmap of Thermal Camera
-          </h1>
-          <p>Fever Detection using Thermal Sensing for Brooding Chicks</p>
-        </CardHeader>
-        <CardContent className="flex items-center justify-center w-full h-full">
-          {data ? (
-            <ThermalHeatmap data={data} blurRadius={config.blurRadius} />
-          ) : (
-            <Skeleton className="w-[320px] h-[240px]"></Skeleton>
-          )}
-        </CardContent>
-      </Card>
+      {isConnected && data ? (
+        <>
+          <Card className="w-full print:hidden">
+            <CardHeader>
+              <h1 className="text-lg font-medium md:text-xl">
+                Realtime Live Heatmap of Thermal Camera
+              </h1>
+              <p>Fever Detection using Thermal Sensing for Brooding Chicks</p>
+            </CardHeader>
+            <CardContent className="flex items-center justify-center w-full h-full">
+              <ThermalHeatmap data={data} blurRadius={config.blurRadius} />
+            </CardContent>
+          </Card>
+        </>
+      ) : (
+        <div className="flex flex-col items-center justify-center gap-2 print:hidden">
+          <TriangleAlert className="text-red-500" />
+          <Badge className="print:hidden" variant="destructive">
+            {status}
+          </Badge>
+        </div>
+      )}
       <RealTimeTemperatureChart />
       <div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button variant="outline">
+            <Button className="print:hidden" variant="outline">
               <span className="mr-2">
                 <Settings />
               </span>
