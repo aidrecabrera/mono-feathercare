@@ -245,7 +245,7 @@ const RealTimeTemperatureChart = () => {
       let query = supabase
         .from("fever_log")
         .select("*")
-        .order("detected_at", { ascending: true });
+        .order("detected_at", { ascending: false });
 
       if (selectedDate) {
         const startOfDay = dayjs(selectedDate).startOf("day").toISOString();
@@ -475,7 +475,7 @@ const RealTimeTemperatureChart = () => {
                 left: -25,
                 bottom: 0,
               }}
-              data={monitorData}
+              data={monitorData.slice().reverse()}
             >
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis

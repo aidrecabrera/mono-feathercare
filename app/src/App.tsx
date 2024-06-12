@@ -179,7 +179,7 @@ const App: React.FC = () => {
         <div className="flex flex-col items-center justify-center gap-2 print:hidden">
           <TriangleAlert className="text-red-500" />
           <Badge className="print:hidden" variant="destructive">
-            {status}
+            {connectionStatus}
           </Badge>
         </div>
       )}
