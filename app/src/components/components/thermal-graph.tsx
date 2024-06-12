@@ -213,6 +213,7 @@ const RealTimeTemperatureChart = () => {
   const [feverData, setFeverData] = useState<FeverData[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState("daily");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  // @ts-ignore
   const [feverCount, setFeverCount] = useState<number>(0);
   const isPrintMode = useMediaQuery({ query: "print" });
 

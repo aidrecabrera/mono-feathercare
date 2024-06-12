@@ -34,8 +34,7 @@ const getDefaultConfig = () => ({
   ),
   blurRadius: parseFloat(localStorage.getItem("blurRadius") || "8"),
   apiUrl:
-    localStorage.getItem("apiUrl") ||
-    "http://192.168.254.107:5000/thermal_data",
+    localStorage.getItem("apiUrl") || "http://192.168.74.39:5000/thermal_data",
 });
 
 const useCheckConnection = (url: string, retries: number, interval: number) => {
