@@ -28,14 +28,21 @@ interface ThermalData {
   minHet: number;
 }
 
-const getDefaultConfig = () => ({
-  temperatureThreshold: parseFloat(
-    localStorage.getItem("temperatureThreshold") || "40.1"
-  ),
-  blurRadius: parseFloat(localStorage.getItem("blurRadius") || "8"),
-  apiUrl:
-    localStorage.getItem("apiUrl") || "http://192.168.74.39:5000/thermal_data",
-});
+const getDefaultConfig = () => {
+  let apiUrl =
+    localStorage.getItem("apiUrl") || "192.168.74.39:5000/thermal_data";
+  if (!apiUrl.startsWith("http://") && !apiUrl.startsWith("https://")) {
+    apiUrl = "http://" + apiUrl;
+  }
+
+  return {
+    temperatureThreshold: parseFloat(
+      localStorage.getItem("temperatureThreshold") || "40.1"
+    ),
+    blurRadius: parseFloat(localStorage.getItem("blurRadius") || "8"),
+    apiUrl: apiUrl,
+  };
+};
 
 const useCheckConnection = (url: string, retries: number, interval: number) => {
   const [status, setStatus] = useState("");
