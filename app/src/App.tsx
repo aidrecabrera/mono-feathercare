@@ -38,23 +38,18 @@ const getDefaultConfig = () => ({
     "http://192.168.254.107:5000/thermal_data",
 });
 
-const useCheckConnection = (
-  url: string | URL | Request,
-  retries: number,
-  interval: number | undefined
-) => {
+const useCheckConnection = (url: string, retries: number, interval: number) => {
   const [status, setStatus] = useState("");
 
   const checkConnection = useCallback(() => {
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       let attempts = 0;
       const ping = () => {
         fetch(url)
           .then((response) => {
-            console.log(response);
             if (response.ok) {
-              console.log("Connection Established");
-              resolve({ name: "Connection Established" });
+              setStatus("Connection Established");
+              resolve();
             } else {
               throw new Error("Network response was not ok");
             }
@@ -64,6 +59,7 @@ const useCheckConnection = (
               attempts++;
               setTimeout(ping, interval);
             } else {
+              setStatus("No Connection to Sensor");
               reject(new Error("No Connection to Sensor"));
             }
           });
@@ -75,11 +71,11 @@ const useCheckConnection = (
   useEffect(() => {
     setStatus("Connecting...");
     toast.promise(checkConnection, {
-      loading: "Connecting to " + getDefaultConfig().apiUrl,
-      success: () => "Connection Established to " + getDefaultConfig().apiUrl,
+      loading: `Connecting to ${url}`,
+      success: `Connection Established to ${url}`,
       error: "No Connection to Sensor",
     });
-  }, [checkConnection]);
+  }, [checkConnection, url]);
   return status;
 };
 
@@ -91,12 +87,12 @@ const App: React.FC = () => {
   const [isConnected, setIsConnected] = useState<boolean>(true);
 
   const fetchData = async () => {
-    if (!config.apiUrl) return;
-    if (!config.temperatureThreshold) return;
-    if (!config.blurRadius) return;
-    if (!config.apiUrl.startsWith("http")) return;
-    if (!config.apiUrl.includes("thermal_data")) return;
-    if (!config.temperatureThreshold) return;
+    if (
+      !config.apiUrl ||
+      !config.apiUrl.startsWith("http") ||
+      !config.apiUrl.includes("thermal_data")
+    )
+      return;
 
     setLastRefreshed(new Date());
     try {
@@ -108,14 +104,6 @@ const App: React.FC = () => {
       setIsConnected(false);
     }
   };
-
-  useEffect(() => {
-    if (connectionStatus === "Connection Established") {
-      fetchData();
-      const interval = setInterval(fetchData, 300);
-      return () => clearInterval(interval);
-    }
-  }, [config.apiUrl]);
 
   useEffect(() => {
     localStorage.setItem(
@@ -137,17 +125,23 @@ const App: React.FC = () => {
     }));
   };
 
-  const [status, setStatus] = useState("");
-
   const connectionStatus = useCheckConnection(config.apiUrl, 5, 2000);
 
   useEffect(() => {
-    setStatus(connectionStatus);
+    setIsConnected(connectionStatus === "Connection Established");
+  }, [connectionStatus]);
+
+  useEffect(() => {
+    if (connectionStatus === "Connection Established") {
+      fetchData();
+      const interval = setInterval(fetchData, 300);
+      return () => clearInterval(interval);
+    }
   }, [connectionStatus, config.apiUrl]);
 
   return (
     <div className="flex flex-col gap-2">
-      <div className=" print:hidden">
+      <div className="print:hidden">
         <Indicator
           title="High Fever"
           amount={highFeverDetected ? "Detected" : "Not Detected"}
